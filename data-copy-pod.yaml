@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ss-data-copy-pod
+  namespace: ecepxie
+spec:
+  containers:
+    - name: data-copy-container
+      image: busybox # A lightweight image
+      command: ["sleep", "3600"] # Keep the pod alive for copying data
+      volumeMounts:
+        - mountPath: "/data"
+          name: ss-storage
+  volumes:
+    - name: ss-storage
+      persistentVolumeClaim:
+        claimName: ss-pvc

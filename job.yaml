@@ -1,0 +1,52 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ss-job
+  namespace: ecepxie
+spec:
+  template:
+    spec:
+      containers:
+        - name: gpu-container
+          image: gitlab-registry.nrp-nautilus.io/prp/jupyter-stack/prp:latest
+          # image: pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
+          env:
+            - name: TMPDIR
+              value: "/tmp"
+          # command: ["python", "/data/imagemol_trainv2.py"] # Updated path to access the PVC
+          command: ["/bin/bash", "-c"]
+          # command: ["sleep", "3600"]
+          args: [
+              # "pip install -r /data/full_pip_requirements.txt && \
+
+              "pip install -r /data/less_requirements.txt && \
+              python /data/imagemol_trainv3.py --epochs 50 && \
+              echo 'Training finished. Keeping job running for 1 hour...' && \
+              sleep 3600",
+            ]
+          resources:
+            limits:
+              cpu: "2"
+              memory: "30Gi"
+              nvidia.com/gpu: 1
+            requests:
+              cpu: "2"
+              memory: "30Gi"
+              nvidia.com/gpu: 1
+          volumeMounts:
+            - mountPath: "/data" # Mount the PVC here
+              name: ss-storage
+            - mountPath: "/dev/shm" # Mount the shared memory here
+              name: shm-volume
+          securityContext:
+            runAsUser: 0
+
+      restartPolicy: Never
+      volumes:
+        - name: ss-storage
+          persistentVolumeClaim:
+            claimName: ss-pvc # Reference the PVC created earlier
+        - name: shm-volume
+          emptyDir:
+            medium: Memory # Use memory for shared memory
+            sizeLimit: "8Gi" # You can adjust this to your needs
