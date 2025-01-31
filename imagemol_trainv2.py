@@ -15,8 +15,8 @@ import logging
 
 # from pipeline.models.image_mol import ImageMol, get_support_model_names
 
-root_path = "." # local
-# root_path = "/data" # k8
+# root_path = "." # local
+root_path = "/data" # k8
 
 def get_support_model_names():
     return ["ResNet18", "ResNet34", "ResNet50", "ResNet101", "ResNet152"]

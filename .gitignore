@@ -20,3 +20,5 @@ convert_llama_weights_to_hf.py
 try.py
 saved_models/
 dataset/smiles_to_path.json
+saved_models_new/
+downloaded/

@@ -101,6 +101,9 @@ class ImageMol(nn.Module):
         logging.info("Loading info: {}".format(msg))
         logging.info("load checkpoint from %s" % url_or_filename)
 
+        print("Loading info: {}".format(msg))
+        print("load checkpoint from %s" % url_or_filename)
+
         return msg
 
 
@@ -166,18 +169,42 @@ class DrugInteractionDataset(Dataset):
         return img1, img2, torch.tensor(interaction)
 
 class DrugInteractionClassifier(nn.Module):
-    def __init__(self, base_model="ResNet18"):
+    def __init__(self, base_model="ResNet18", dropout_rate=0.3):
         super(DrugInteractionClassifier, self).__init__()
         self.imagemol = ImageMol(baseModel=base_model)
-        self.fc = nn.Linear(512 * 2, 3)  # 3 classes: minor, moderate, major
+        
+        # self.fc = nn.Linear(512 * 2, 3)  # 3 classes: minor, moderate, major
+        self.fc1 = nn.Linear(512 * 2, 128)  # First fc layer: 1024 -> 128
+        self.fc2 = nn.Linear(128, 3) 
+
+        # Dropout layers to reduce overfitting
+        self.dropout1 = nn.Dropout(dropout_rate)  # Dropout after first fc layer
+        self.dropout2 = nn.Dropout(dropout_rate)  # Dropout after second fc layer
+
         self.activation = nn.ReLU()
 
     def forward(self, x1, x2):
         emb1 = self.imagemol(x1)
         emb2 = self.imagemol(x2)
         concat_emb = torch.cat((emb1, emb2), dim=1)
-        x = self.activation(concat_emb)
-        x = self.fc(x)
+        # x = self.activation(concat_emb)
+        # x = self.fc(x)
+
+        # x = self.fc1(concat_emb)
+        # x = self.activation(x)
+        # x = self.dropout1(x)
+        
+        # # Pass through second fully connected layer for final output
+        # x = self.fc2(x)
+        # x = self.dropout2(x)
+
+        # dropout order v2
+        x = self.dropout1(concat_emb)
+        x = self.fc1(x)
+        x = self.activation(x)
+        x = self.dropout2(x)
+        x = self.fc2(x)
+
         return x
 
 def parse_args():
@@ -188,18 +215,30 @@ def parse_args():
     parser.add_argument("--batch-size", type=int, default=32, help="Training batch size.")
     parser.add_argument("--epochs", type=int, default=1, help="Number of epochs.")
     parser.add_argument("--lr", type=float, default=0.001, help="Learning rate.")
-    parser.add_argument("--checkpoint", type=str, default=None, help="Path to checkpoint for pretrained weights.")
+    parser.add_argument("--checkpoint", type=str, default=f"{root_path}/ckpt/ImageMol.pth.tar", help="Path to checkpoint for pretrained weights.")
     parser.add_argument("--train-file", type=str, default=f"{root_path}/data/drug_drug_interaction_train.json", help="Path to train dataset.")
     parser.add_argument("--val-file", type=str, default=f"{root_path}/data/drug_drug_interaction_val.json", help="Path to validation dataset.")
     parser.add_argument("--test-file", type=str, default=f"{root_path}/data/drug_drug_interaction_test.json", help="Path to test dataset.")
     return parser.parse_args()
 
-def setup_dataloader(excel_file, smiles_to_path, batch_size):
-    transform = transforms.Compose([
-        transforms.Resize((224, 224)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    ])
+def setup_dataloader(excel_file, smiles_to_path, batch_size, augment=False):
+    if augment:
+        transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomRotation(degrees=15),
+            # transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
+            transforms.RandomAffine(degrees=0, translate=(0.1, 0.1)),
+            transforms.RandomResizedCrop(size=224, scale=(0.8, 1.0)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
+    else:
+        transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
     
     dataset = DrugInteractionDataset(excel_file, smiles_to_path, transform=transform)
     return DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=2)
@@ -250,20 +289,36 @@ def main():
         smiles_to_path = json.load(file)
 
     model = DrugInteractionClassifier(base_model=args.base_model).to(device)
+    
     if args.checkpoint:
+        print(f"Loading checkpoint from {args.checkpoint}")
         model.imagemol.load_from_pretrained(args.checkpoint)
 
-    for param in model.imagemol.parameters():
-        param.requires_grad = False
+    # comment if finetuning/training full model
+    # for param in model.imagemol.parameters():
+    #     param.requires_grad = False
 
     # data_loader = setup_dataloader(args.excel_file, smiles_to_path, args.batch_size)
 
-    train_loader = setup_dataloader(args.train_file, smiles_to_path, args.batch_size)
-    val_loader = setup_dataloader(args.val_file, smiles_to_path, args.batch_size)
-    test_loader = setup_dataloader(args.test_file, smiles_to_path, args.batch_size)
+    train_loader = setup_dataloader(args.train_file, smiles_to_path, args.batch_size, augment=True)
+    val_loader = setup_dataloader(args.val_file, smiles_to_path, args.batch_size, augment=False)
+    test_loader = setup_dataloader(args.test_file, smiles_to_path, args.batch_size, augment=False)
 
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.fc.parameters(), lr=args.lr)
+    # optimizer = optim.Adam(model.fc.parameters(), lr=args.lr)
+
+    lr = args.lr
+    # lr = 0.01
+
+    # optimizer = optim.Adam(
+    #     list(model.fc1.parameters()) + list(model.fc2.parameters()), 
+    #     lr=lr
+    # )
+
+    optimizer = optim.Adam(
+        list(model.parameters()),
+        lr=lr
+    )
 
     print(f"Training started for {args.epochs} epochs...")
 
@@ -287,7 +342,7 @@ def main():
     print("Training completed!")
 
     print("Plotting and saving train and val loss curve...")
-    filename = f"{root_path}/saved_models/imagemol_classifier_{args.epochs}epochs.png"
+    filename = f"{root_path}/saved_models_new/imagemol_classifier_full2fc_{args.epochs}epochs_lr001_dr3v2_waug.png"
     plt.figure(figsize=(10, 6))
     plt.plot(train_losses, label="Training Loss")
     plt.plot(val_losses, label="Validation Loss")
@@ -303,7 +358,7 @@ def main():
 
     print("Saving model state dict...")
 
-    save_path = f"{root_path}/saved_models/imagemol_classifier_{args.epochs}epochs.pth"
+    save_path = f"{root_path}/saved_models_new/imagemol_classifier_full2fc_{args.epochs}epochs_lr001_dr3v2_waug.pth"
     os.makedirs(os.path.dirname(save_path), exist_ok=True)  # Ensure directory exists
     torch.save(model.state_dict(), save_path)
 
