@@ -140,7 +140,7 @@ class Chat:
 
     def ask(self, text, conv):
         if len(conv.messages) > 0 and conv.messages[-1][0] == conv.roles[0] \
-                and conv.messages[-1][1][-6:] == '</compound>':  # last message is image.
+                and conv.messages[-1][1][-12:] == '</compound2>':  # last message is image.
             conv.messages[-1][1] = ' '.join([conv.messages[-1][1], text])
         else:
             conv.append_message(conv.roles[0], text)
@@ -149,7 +149,6 @@ class Chat:
                repetition_penalty=1.0, length_penalty=1, temperature=1.0, max_length=2000):
         conv.append_message(conv.roles[1], None)
         embs = self.get_context_emb(conv, img_list)
-
         current_max_len = embs.shape[1] + max_new_tokens
         if current_max_len - max_length > 0:
             print('Warning: The number of tokens in current conversation exceeds the max length. '
@@ -157,9 +156,14 @@ class Chat:
         begin_idx = max(0, current_max_len - max_length)
 
         embs = embs[:, begin_idx:]
+        
+        if self.model.llama_tokenizer.pad_token is None:
+            self.model.llama_tokenizer.pad_token = self.model.llama_tokenizer.eos_token
 
         outputs = self.model.llama_model.generate(
             inputs_embeds=embs,
+            attention_mask=torch.ones(embs.shape[:-1], dtype=torch.long, device=self.device),
+            pad_token_id=self.model.llama_tokenizer.pad_token_id,
             max_new_tokens=max_new_tokens,
             stopping_criteria=self.stopping_criteria,
             num_beams=num_beams,
@@ -183,7 +187,6 @@ class Chat:
 
     def upload_img(self, image, conv, img_list, autocast=False, autocast_proj=False):
         assert isinstance(image, str), f"Expected a string but got {image}"
-
         timestamp = time.time()
         with open("dataset/tmp_smiles.txt", "wt") as f:
             f.write(str(timestamp) + " " + image)
@@ -201,30 +204,35 @@ class Chat:
                     except EOFError:
                         cnt -= 1
                         continue
-                t2 = res["timestamp"]
-                if t2 > timestamp:
-                    if "graph" in res:
-                        g = res["graph"]
-                        graph0 = Data(x=torch.asarray(g['node_feat']), edge_index=torch.asarray(g['edge_index']), edge_attr=torch.asarray(g['edge_feat']))
-                        inputs["graph"] = Batch.from_data_list([graph0]).to(self.device)
-                    if "img_save_path" in res:
-                        img_save_path = res["img_save_path"]
-                        img = Image.open(img_save_path).convert("RGB")
-                        inputs["image"] = self.transforms(img).unsqueeze(0).to(self.device)
+                res0 = res[0]
+                res1 = res[1]
+                t2, t3 = res0["timestamp"], res1["timestamp"]
+                if t2 > timestamp and t3 > timestamp:
+                    if "graph" in res0 and "graph" in res1:
+                        from torch.nn.functional import normalize
+                        g1, g2 = res0["graph"], res1["graph"]
+                        graph1 = Data(x=torch.asarray(g1['node_feat']), edge_index=torch.asarray(g1['edge_index']), edge_attr=torch.asarray(g1['edge_feat']))
+                        graph2 = Data(x=torch.asarray(g2['node_feat']), edge_index=torch.asarray(g2['edge_index']), edge_attr=torch.asarray(g2['edge_feat']))
+                        inputs["graph"] = [graph1, graph2]
+                    if "img_save_path" in res0 and "img_save_path" in res1:
+                        img0 = Image.open(res0["img_save_path"]).convert("RGB")
+                        img1 = Image.open(res1["img_save_path"]).convert("RGB")
+                        img0_transformed = self.transforms(img0).unsqueeze(0).to(self.device)
+                        img1_transformed = self.transforms(img1).unsqueeze(0).to(self.device)
+                        inputs["image"] = torch.cat([img0_transformed, img1_transformed], dim=0)
                     break
         if "image" not in inputs and "graph" not in inputs:
             return  # issues in creating inputs
-
         image_emb, _ = self.model.encode_img_infer(inputs, device=self.device, autocast=autocast, autocast_proj=autocast_proj)
         img_list.append(image_emb)
-        conv.append_message(conv.roles[0], "<compound><compoundHere></compound>")
+        conv.append_message(conv.roles[0], "You are provided with two drugs: <compound1><compoundHere></compound1> <compound2><compoundHere></compound2>. ")
         msg = "Received."
         # self.conv.append_message(self.conv.roles[1], msg)
         return msg
 
     def get_context_emb(self, conv, img_list):
+        img_list = [img for img in torch.split(img_list[0], 1, dim=0)]
         prompt = conv.get_prompt()
-        # print(prompt)
         prompt_segs = prompt.split('<compoundHere>')
         assert len(prompt_segs) == len(img_list) + 1, "Unmatched numbers of image placeholders and images."
         seg_tokens = [

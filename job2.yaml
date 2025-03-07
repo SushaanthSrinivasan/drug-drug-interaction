@@ -8,34 +8,29 @@ spec:
     spec:
       containers:
         - name: gpu-container
-          image: gitlab-registry.nrp-nautilus.io/prp/jupyter-stack/prp:latest
-          # image: pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
+          image: sushaanth/ddi-image:latest
           env:
             - name: TMPDIR
               value: "/tmp"
-          # command: ["python", "/data/imagemol_trainv2.py"] # Updated path to access the PVC
           command: ["/bin/bash", "-c"]
-          # command: ["sleep", "3600"]
           args: [
-              # "pip install -r /data/full_pip_requirements.txt && \
-
-              "pip install -r /data/less_requirements.txt && \
-              python /data/imagemol_trainv3.py --epochs 20 && \
-              echo 'Training finished. Keeping job running for 1 hour...' && \
+              "echo 'Starting training' \
               sleep 3600",
             ]
           resources:
             limits:
               cpu: "2"
-              memory: "30Gi"
+              memory: "50Gi"
               nvidia.com/gpu: 1
             requests:
               cpu: "2"
-              memory: "30Gi"
+              memory: "50Gi"
               nvidia.com/gpu: 1
           volumeMounts:
             - mountPath: "/data" # Mount the PVC here
               name: ss-storage
+            - mountPath: "/weights" # The other person's PVC for LLM weights
+              name: llm-weights
             - mountPath: "/dev/shm" # Mount the shared memory here
               name: shm-volume
           securityContext:
@@ -46,6 +41,9 @@ spec:
         - name: ss-storage
           persistentVolumeClaim:
             claimName: ss-pvc # Reference the PVC created earlier
+        - name: llm-weights
+          persistentVolumeClaim:
+            claimName: youwei-temp
         - name: shm-volume
           emptyDir:
             medium: Memory # Use memory for shared memory

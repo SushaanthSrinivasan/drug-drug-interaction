@@ -18,6 +18,9 @@ dataset/tmp_smiles.txt
 pipeline/output
 convert_llama_weights_to_hf.py
 try.py
+dataset/smiles_image_0.png
+dataset/smiles_image_1.png
+dataset/tmp_smiles.pkl
 saved_models/
 dataset/smiles_to_path.json
 saved_models_new/

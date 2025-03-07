@@ -246,6 +246,10 @@ def setup_dataloader(excel_file, smiles_to_path, batch_size, augment=False):
 def train_one_epoch(model, criterion, optimizer, data_loader, device):
     model.train()
     running_loss = 0.0
+
+    correct = 0
+    total = 0
+
     for img1, img2, labels in tqdm(data_loader, desc="Training"):
         img1, img2, labels = img1.to(device), img2.to(device), labels.to(device)
         optimizer.zero_grad()
@@ -254,7 +258,15 @@ def train_one_epoch(model, criterion, optimizer, data_loader, device):
         loss.backward()
         optimizer.step()
         running_loss += loss.item() * img1.size(0)
-    return running_loss / len(data_loader.dataset)
+
+        _, preds = torch.max(outputs, 1)
+        correct += (preds == labels).sum().item()
+        total += labels.size(0)
+
+    train_loss = running_loss / len(data_loader.dataset)
+    train_acc = correct / total
+
+    return train_loss, train_acc
 
 def evaluate(model, criterion, data_loader, device):
     model.eval()
@@ -300,7 +312,7 @@ def main():
 
     # data_loader = setup_dataloader(args.excel_file, smiles_to_path, args.batch_size)
 
-    train_loader = setup_dataloader(args.train_file, smiles_to_path, args.batch_size, augment=True)
+    train_loader = setup_dataloader(args.train_file, smiles_to_path, args.batch_size, augment=False)
     val_loader = setup_dataloader(args.val_file, smiles_to_path, args.batch_size, augment=False)
     test_loader = setup_dataloader(args.test_file, smiles_to_path, args.batch_size, augment=False)
 
@@ -324,7 +336,7 @@ def main():
 
     for epoch in range(args.epochs):
         print(f"Epoch {epoch+1}/{args.epochs}")
-        train_loss = train_one_epoch(model, criterion, optimizer, train_loader, device)
+        train_loss, train_acc = train_one_epoch(model, criterion, optimizer, train_loader, device)
         val_loss, val_acc = evaluate(model, criterion, val_loader, device)
 
         print(f"train_loss: {train_loss}")
@@ -333,8 +345,8 @@ def main():
         train_losses.append(train_loss)
         val_losses.append(val_loss)
 
-        print(f"Training Loss: {train_loss:.4f}")
-        print(f"Validation Loss: {val_loss:.4f}, Accuracy: {val_acc:.4f}")
+        print(f"Training Loss: {train_loss:.4f}, Training Accuracy: {train_acc:.4f}")
+        print(f"Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_acc:.4f}")
 
     test_loss, test_acc = evaluate(model, criterion, test_loader, device)
     print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_acc:.4f}")
@@ -342,7 +354,7 @@ def main():
     print("Training completed!")
 
     print("Plotting and saving train and val loss curve...")
-    filename = f"{root_path}/saved_models_new/imagemol_classifier_full2fc_{args.epochs}epochs_lr001_dr3v2_waug.png"
+    filename = f"{root_path}/saved_models_new/imagemol_classifier_full2fc_{args.epochs}epochs_lr001_dr3v2_test.png"
     plt.figure(figsize=(10, 6))
     plt.plot(train_losses, label="Training Loss")
     plt.plot(val_losses, label="Validation Loss")
@@ -358,7 +370,7 @@ def main():
 
     print("Saving model state dict...")
 
-    save_path = f"{root_path}/saved_models_new/imagemol_classifier_full2fc_{args.epochs}epochs_lr001_dr3v2_waug.pth"
+    save_path = f"{root_path}/saved_models_new/imagemol_classifier_full2fc_{args.epochs}epochs_lr001_dr3v2_test.pth"
     os.makedirs(os.path.dirname(save_path), exist_ok=True)  # Ensure directory exists
     torch.save(model.state_dict(), save_path)
 

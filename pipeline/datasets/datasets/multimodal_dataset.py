@@ -15,7 +15,7 @@ class MultimodalDataset(Dataset):
         super().__init__()
         self.use_image = use_image
         self.use_graph = use_graph
-        jsonpath = os.path.join(datapath, "smiles_img_qa.json")
+        jsonpath = os.path.join(datapath, "new_smiles_img_qa.json")
         print(f"Using {jsonpath=}")
         with open(jsonpath, "rt") as f:
             meta = json.load(f)
@@ -68,8 +68,8 @@ class MultimodalDataset(Dataset):
     
     def __getitem__(self, index):
         idx, qa_pair = self.data[index]
-        # out = {"question": qa_pair[0], "text_input": str(qa_pair[1])}
-        out = {"question": None, "text_input": str(qa_pair[0])}
+        out = {"question": qa_pair[0], "text_input": str(qa_pair[1])}
+        # out = {"question": None, "text_input": str(qa_pair[0])}
         if self.use_image:
             imgs = [self.transforms(img) for img in self.images[idx]]
             out.update({"img": imgs})
@@ -79,12 +79,14 @@ class MultimodalDataset(Dataset):
     
     @staticmethod
     def collater(samples):
-        if samples[0].get("question") is not None:
-            qq = [x["question"] for x in samples]
-        else:
-            qq = None
+        # if samples[0].get("question") is not None:
+        #     qq = [x["question"] for x in samples]
+        # else:
+        #     qq = Non
+        qq = [x["question"] for x in samples]
         aa = [x["text_input"] for x in samples]
         out = {"question": qq, "text_input": aa}
+        # print(f"Out: {out}")
         # Handle images if they exist
         if "img" in samples[0]:
             imgs_collated = [default_collate(sample["img"]) for sample in samples]
@@ -95,3 +97,4 @@ class MultimodalDataset(Dataset):
             out.update({"graph": graph_batches})
         
         return out
+    

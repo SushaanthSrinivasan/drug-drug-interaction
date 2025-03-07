@@ -93,9 +93,11 @@ def main():
     setup_seeds(cfg)
 
     # set after init_distributed_mode() to only log on master.
+    cfg_dict = cfg.to_dict()
+    wandb_run_name = cfg_dict['run']['output_dir'].split('/')[-1]
     if get_rank() == 0:
         setup_logger()
-        wandb.init(project="drugchat", config=cfg.to_dict(), job_type="training")
+        wandb.init(project="drugchat", config=cfg_dict, name=wandb_run_name, job_type="training")
         
     cfg.pretty_print()
 

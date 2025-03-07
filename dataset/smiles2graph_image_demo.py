@@ -108,7 +108,7 @@ def convert_chembl():
     """
     old_t0 = 0
     txt = "dataset/tmp_smiles.txt"
-    save_path = "dataset/smiles_image.png"
+    save_path_template = "dataset/smiles_image_{idx}.png"
     while True:
         time.sleep(1)
         if not os.path.isfile(txt):
@@ -121,18 +121,32 @@ def convert_chembl():
         t0 = float(tmp[0])
         if t0 <= old_t0:
             continue
-        smi = " ".join(tmp[1:]).strip("\n ")
+        smis = " ".join(tmp[1:]).strip("\n ").split("|")
         tt = datetime.datetime.now().strftime("%m/%d/%Y, %H:%M:%S")
         print(f"At time {tt}: {repr(res)}")
         old_t0 = t0
-        try:
-            g = smiles2graph(smi)
-            Smiles2Img(smi, savePath=save_path)
-            out = {"timestamp": time.time(), "graph": g, "img_save_path": save_path}
-        except:
-            out = {"timestamp": time.time()}
+        results = []
+        for idx, smi in enumerate(smis):
+            save_path = save_path_template.format(idx=idx)
+            try:
+                g = smiles2graph(smi)
+                Smiles2Img(smi, savePath=save_path)
+                out = {
+                    "smi": smi,
+                    "timestamp": time.time(),
+                    "graph": g,
+                    "img_save_path": save_path
+                }
+            except Exception as e:
+                out = {
+                    "smi": smi,
+                    "timestamp": time.time(),
+                    "error": str(e)
+                }
+            results.append(out)
+                
         with open("dataset/tmp_smiles.pkl", "wb") as f:
-            pickle.dump(out, f)
+            pickle.dump(results, f)
 
 
 if __name__ == '__main__':

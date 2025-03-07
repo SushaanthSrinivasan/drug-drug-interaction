@@ -23,6 +23,10 @@ spec:
               python /data/imagemol_trainv3.py --epochs 20 && \
               echo 'Training finished. Keeping job running for 1 hour...' && \
               sleep 3600",
+              # "pip install -r /data/less_requirements.txt && \
+              # python /data/imagemolv3_test.py && \
+              # echo 'Training finished. Keeping job running for 1 hour...' && \
+              # sleep 3600",
             ]
           resources:
             limits:

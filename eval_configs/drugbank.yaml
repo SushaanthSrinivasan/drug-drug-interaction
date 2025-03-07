@@ -9,22 +9,22 @@ datasets:
         name: blip2_image_eval
 model:
   arch: drugchat
-  ckpt: 'pipeline/output/exp1/20241023192/checkpoint_best.pth'
-  encoder_ckpt: ckpt/gcn_contextpred.pth
+  ckpt: "/data/ckpt/checkpoint_best.pth"
+  # ckpt: '/data2/zhaoyang/drugchat/output/mutiple-questions-exp2-30-epochs-lr-2e-5-iters-2300/20241202222/checkpoint_best.pth'
   encoder_names:
-  - gnn
-  - image_mol
-  end_sym: '###'
+    - gnn
+    - image_mol
+  end_sym: "###"
   feat_dims:
     graph_feat: 300
     image_feat: 512
   freeze_gnn: true
   freeze_image_mol: true
   low_resource: false
-  max_txt_len: 160
+  max_txt_len: 400
   model_type: pretrain_vicuna
   prompt_path: prompts/alignment.txt
-  prompt_template: '###Human: {} ###Assistant: '
+  prompt_template: "###Human: {} ###Assistant: "
   prompt_tuning: 0
   use_mlp: true
 run:

@@ -1,6 +1,0 @@
-1. Conver llama weights to hf 
-python convert_llama_weights_to_hf.py  --input_dir /home/zhaoyang/project/Llama-2-13b  --model_size 13B --output_dir /home/zhaoyang/project/drugchat/llama-13b
-
-2. Then 
-python -m fastchat.model.apply_delta --base /home/zhaoyang/project/drugchat/llama-13b-hf  --target /home/zhaoyang/project/drugchat/vicuna-13b-weight  --delta /home/zhaoyang/project/drugchat/vicuna-13b-delta-v0
-python -m fastchat.model.apply_delta --base /home/zhaoyang/project/drugchat/llama-7b-hf  --target /home/zhaoyang/project/drugchat/vicuna-7b-weight  --delta /home/zhaoyang/project/drugchat/vicuna-7b-delta-v0

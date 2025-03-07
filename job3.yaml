@@ -1,0 +1,50 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ss-job
+  namespace: ecepxie
+spec:
+  template:
+    spec:
+      containers:
+        - name: gpu-container
+          image: sushaanth/ddi-image:latest
+          env:
+            - name: TMPDIR
+              value: "/tmp"
+          command: ["/bin/bash", "-c"]
+          args: [
+              "echo 'Starting training' && \
+              sleep 7200",
+            ]
+          resources:
+            limits:
+              cpu: "4"
+              memory: "100Gi"
+              nvidia.com/gpu: 1
+            requests:
+              cpu: "4"
+              memory: "100Gi"
+              nvidia.com/gpu: 1
+          volumeMounts:
+            - mountPath: "/data" # Mount the PVC here
+              name: ss-storage
+            - mountPath: "/weights" # The other person's PVC for LLM weights
+              name: llm-weights
+            - mountPath: "/dev/shm" # Mount the shared memory here
+              name: shm-volume
+          securityContext:
+            runAsUser: 0
+
+      restartPolicy: Never
+      volumes:
+        - name: ss-storage
+          persistentVolumeClaim:
+            claimName: ss-pvc # Reference the PVC created earlier
+        - name: llm-weights
+          persistentVolumeClaim:
+            claimName: youwei-temp
+        - name: shm-volume
+          emptyDir:
+            medium: Memory # Use memory for shared memory
+            sizeLimit: "8Gi" # You can adjust this to your needs

@@ -21,6 +21,8 @@ from pipeline.processors import *
 from pipeline.runners import *
 from pipeline.tasks import *
 
+PROMPT_TEMPLATE = ""
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Inference")
@@ -73,7 +75,7 @@ if model.lora_rank:
     print("merge_and_unload LoRA")
     model.llama_model = model.llama_model.merge_and_unload()
 
-model = model.to('cuda:{}'.format(args.gpu_id))
+model = model.to('cuda:{}'.format(args.gpu_id)).eval()
 
 chat = Chat(model, device='cuda:{}'.format(args.gpu_id))
 print('Initialization Finished')
@@ -120,12 +122,10 @@ def gradio_answer(chatbot, chat_state, img_list, num_beams, temperature):
 
 
 def infer(smiles, questions):
-    
     chat = []
     chat_state, img_list = upload_img(smiles)
     if chat_state is None:
         return
-    
     for text_input in questions:
         chatbot = []
         chat_state_ = copy.deepcopy(chat_state)
@@ -152,11 +152,15 @@ def infer_QA():
         t0 = time.time()
         if is_int(smi):
             smi, rec = rec
-
+        smile_1, smile_2 = smi.split("|")
+        assert smile_1 or smile_2
         smi_ = copy.copy(smi)
+        # "Analyze the given two compounds and predict the drug interactions between them. You should first classify the interactions as high, moderate, or low, and then provide a detailed description of the mechanisms involved."
+        # questions = [PROMPT_TEMPLATE.format(smiles1=smi, smiles2=smi)]
+        #questions = ["Analyze the given two compounds and predict the drug interactions between them. You should first classify the interactions as high, moderate, or low, and then provide a detailed description of the mechanisms involved."]
         # breakpoint()
-        questions = ["You are provided with two drugs: <compound1><compoundHere></compound1> and <compound2><compoundHere></compound2>. Analyze the given compounds and predict the drug interactions between them. You should first classify the interactions as high, moderate, or low, and then provide a detailed description of the mechanisms involved."]
-        answers = [answer for answer in rec]
+        questions = [question for question, _ in rec]
+        answers = [answer for _, answer in rec]
         # questions = [question for question, answer in rec]
         # answers = [answer for question, answer in rec]
         qa_pairs = infer(smi, questions)
@@ -171,7 +175,6 @@ def infer_QA():
 
         # for qa in qa_pairs:
         #     print(qa)
-
         with open(args.out_file, "wt") as f:
             json.dump(out, f, indent=2)
 
